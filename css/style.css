@@ -466,11 +466,12 @@ body::before {
 
 .tt-item {
   position: absolute;
-  left: 50%;
-  top: 50%;
+  left: 0;
+  top: 0;
   width: 132px;
-  transform: translate(-50%, -50%);
-  transition: left 0.45s cubic-bezier(0.22, 1, 0.36, 1), top 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.45s ease, z-index 0s;
+  transform: translate3d(-50%, -50%, 0);
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.45s ease, z-index 0s;
+  will-change: transform;
   cursor: pointer;
 }
 
@@ -722,6 +723,165 @@ body::before {
   background: rgba(247, 239, 225, 0.08);
   border: 1px solid rgba(247, 239, 225, 0.16);
   color: var(--parchment-100);
+}
+
+/* plate detail modal — expands from wherever the plate was clicked,
+   and blurs everything behind it via backdrop-filter on the overlay */
+
+.plate-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(20, 11, 5, 0.6);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+.plate-modal-overlay.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.plate-modal-card {
+  --origin-x: 50vw;
+  --origin-y: 50vh;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  width: min(92vw, 760px);
+  max-height: 86vh;
+  overflow: auto;
+  padding: 44px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(160deg, var(--cocoa-900), var(--cocoa-950));
+  border: 1px solid rgba(247, 239, 225, 0.14);
+  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  /* starts scaled down and offset to the plate's on-screen position,
+     then eases up to full size centered in the viewport */
+  transform: translate(calc(var(--origin-x) - 50vw), calc(var(--origin-y) - 50vh)) scale(0.1);
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+}
+
+.plate-modal-overlay.is-open .plate-modal-card {
+  opacity: 1;
+  transform: translate(0, 0) scale(1);
+}
+
+.plate-modal-plate {
+  position: relative;
+  flex-shrink: 0;
+  width: 230px;
+  height: 230px;
+  border-radius: 50%;
+  padding: 16px;
+  background: radial-gradient(circle at 38% 30%, #FFFDF8 0%, #F3EADA 55%, #E4D6BE 82%, #D7C6A8 100%);
+  box-shadow:
+    0 16px 30px rgba(0, 0, 0, 0.4),
+    0 2px 0 rgba(255, 255, 255, 0.6) inset,
+    0 -8px 14px rgba(150, 120, 80, 0.25) inset,
+    0 0 0 3px var(--plate-glow-solid, var(--gold-400)),
+    0 0 40px 10px var(--plate-glow, rgba(201, 146, 43, 0.5));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.plate-modal-plate img {
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 10px rgba(60, 35, 15, 0.35));
+}
+
+.plate-modal-plate .tt-item-fallback {
+  font-size: 15px;
+}
+
+.plate-modal-info { min-width: 0; }
+
+.plate-modal-name {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3vw, 30px);
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: var(--parchment-50);
+}
+
+.plate-modal-tagline {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--gold-400);
+  margin: 0 0 14px;
+  letter-spacing: 0.01em;
+}
+
+.plate-modal-desc {
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--parchment-200);
+  opacity: 0.85;
+  margin: 0 0 16px;
+}
+
+.plate-modal-variants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.plate-modal-close {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 1;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(247, 239, 225, 0.25);
+  background: rgba(247, 239, 225, 0.08);
+  color: var(--parchment-100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.plate-modal-close:hover {
+  background: rgba(201, 146, 43, 0.18);
+  border-color: var(--gold-500);
+}
+.plate-modal-close:active { transform: scale(0.92); }
+
+.plate-modal-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plate-modal-card { transition: opacity 0.2s ease; transform: none !important; }
+}
+
+@media (max-width: 720px) {
+  .plate-modal-card {
+    flex-direction: column;
+    text-align: center;
+    padding: 32px 24px 28px;
+    gap: 18px;
+  }
+  .plate-modal-plate { width: 170px; height: 170px; }
+  .plate-modal-variants { justify-content: center; }
+  .plate-modal-close { top: 16px; right: 16px; }
 }
 
 /* category sections */

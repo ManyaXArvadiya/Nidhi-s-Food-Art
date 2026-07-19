@@ -101,6 +101,7 @@
     overlay.classList.add("is-open");
     isOpen = true;
     closeBtn.focus();
+    document.dispatchEvent(new CustomEvent("plate:opened"));
   }
 
   function close() {
@@ -111,6 +112,7 @@
     if (lastFocused && typeof lastFocused.focus === "function") {
       lastFocused.focus();
     }
+    document.dispatchEvent(new CustomEvent("plate:closed"));
   }
 
   document.addEventListener("plate:open", (e) => {

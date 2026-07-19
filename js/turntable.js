@@ -17,7 +17,11 @@
   let activeCategory = "all";
   let rotation = 0;
   let activeIndex = 0;
-  let hoveredItem = null;
+  let hoveredEntry = null;
+
+  // cached DOM refs for every plate on the table, built once per build()
+  // call instead of re-querying the DOM on every animation frame
+  let itemRefs = [];
 
   // ellipse geometry for the plates, recalculated on build/resize.
   // needs to track the --table-cx/cy/w/h values set on .turntable-stage in the CSS
@@ -27,15 +31,26 @@
   let yRadius = 60;
   const LIFT = 46; // px the plates float above the table surface
 
+  // --- motion: a flick spins the table with real momentum, friction
+  // brings it to rest, and left alone it drifts on its own so every
+  // item eventually passes by out front.
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const IDLE_SPEED = 5; // deg/sec ambient drift when nothing else is happening
+  const FRICTION_PER_SEC = 0.12; // fraction of velocity remaining after a full second of coasting
+  const MIN_COAST_VELOCITY = 3; // deg/sec — below this we just snap to the nearest item
+  const MAX_VELOCITY = 1600; // deg/sec clamp so a hard flick can't spin forever
+  let velocity = 0; // deg/sec, current flick/coast speed
+  let motionMode = "idle"; // "idle" | "dragging" | "coasting" | "settling"
+  let isPaused = false; // true while hovered/focused/modal-open — pauses ambient drift only
+  let lastFrameTime = null;
+  let settleTimer = null;
+
   function computeGeometry() {
     const w = stage.clientWidth;
     const h = stage.clientHeight;
     centerX = w * 0.5;
     centerY = h * 0.56 - LIFT;
     xRadius = (w * 1.06) / 2 - 76;
-    // match the table disc's real on-screen height (--table-h: 67% of
-    // stage height), pulled in a bit further so plates sit on the
-    // surface rather than tracking its outer rim
     yRadius = (h * 0.67) / 2 - 34;
     if (xRadius < 70) xRadius = 70;
     if (yRadius < 26) yRadius = 26;
@@ -57,6 +72,7 @@
         activeCategory = cat;
         items = cat === "all" ? ALL_ITEMS : ALL_ITEMS.filter((i) => i.category === cat);
         rotation = 0;
+        cancelMotion();
         filterWrap.querySelectorAll(".tt-filter").forEach((b) => b.classList.remove("is-active"));
         btn.classList.add("is-active");
         build();
@@ -69,7 +85,8 @@
     computeGeometry();
     carousel.innerHTML = "";
     dotsWrap.innerHTML = "";
-    hoveredItem = null;
+    hoveredEntry = null;
+    itemRefs = [];
 
     const n = items.length;
     if (n === 0) {
@@ -123,23 +140,28 @@
       el.appendChild(label);
       carousel.appendChild(el);
 
-      el.addEventListener("click", () => goTo(i));
+      const entry = { el, inner, shadow, plate, item, index: i, lastZ: -1, lastOpacity: -1 };
+      itemRefs.push(entry);
+
+      // keyboard activation (Enter/Space) calls the open logic directly —
+      // this always works regardless of pointer-capture quirks below
       el.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
+          openPlateModal(item, plate);
           goTo(i);
         }
       });
       el.addEventListener("mouseenter", () => {
-        hoveredItem = el;
-        layout();
+        hoveredEntry = entry;
+        layout(true);
       });
       el.addEventListener("mouseleave", () => {
-        if (hoveredItem === el) hoveredItem = null;
-        layout();
+        if (hoveredEntry === entry) hoveredEntry = null;
+        layout(true);
       });
-      el.addEventListener("focus", layout);
-      el.addEventListener("blur", layout);
+      el.addEventListener("focus", () => layout(true));
+      el.addEventListener("blur", () => layout(true));
 
       const dot = document.createElement("button");
       dot.className = "tt-dot";
@@ -149,20 +171,34 @@
       dotsWrap.appendChild(dot);
     });
 
-    layout();
+    layout(true);
     updateDetail();
   }
 
-  function layout() {
+  // dispatches the shared "plate:open" event that plate-modal.js listens
+  // for, using the plate's current on-screen position as the expand origin
+  function openPlateModal(item, plateEl) {
+    const rect = (plateEl || stage).getBoundingClientRect();
+    const origin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    document.dispatchEvent(new CustomEvent("plate:open", { detail: { item, origin } }));
+  }
+
+  // instant = true while a continuous rAF-driven rotation is in progress
+  // (idle drift / coasting): positions are set directly, transform
+  // transitions are switched off so 60fps updates aren't fighting a
+  // 0.45s CSS transition every frame. instant = false only for the
+  // discrete "snap to this item" moves (goTo / settleTo / initial build),
+  // where the CSS transition is left on so the snap eases smoothly.
+  function layout(instant) {
     const n = items.length;
     if (n === 0) return;
     const angleStep = 360 / n;
-    const els = carousel.querySelectorAll(".tt-item");
 
-    let frontEl = null;
+    let frontEntry = null;
     let frontT = -1;
 
-    els.forEach((el, i) => {
+    for (let i = 0; i < itemRefs.length; i++) {
+      const entry = itemRefs[i];
       const angle = angleStep * i + rotation;
       const rad = (angle * Math.PI) / 180;
 
@@ -176,31 +212,38 @@
       const opacity = 0.55 + t * 0.45;
       const z = Math.round(t * 200);
 
-      el.style.left = `${x}px`;
-      el.style.top = `${y}px`;
-      el.style.zIndex = z;
-      el.style.opacity = opacity.toFixed(2);
+      entry.el.style.transition = instant ? "none" : "";
+      entry.el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -50%)`;
 
-      const inner = el.querySelector(".tt-item-inner");
+      if (z !== entry.lastZ) {
+        entry.el.style.zIndex = z;
+        entry.lastZ = z;
+      }
+      const opacityStr = opacity.toFixed(2);
+      if (opacityStr !== entry.lastOpacity) {
+        entry.el.style.opacity = opacityStr;
+        entry.lastOpacity = opacityStr;
+      }
+
       const isNear = t > 0.72;
-      const hoverBoost = el === hoveredItem || el === document.activeElement ? 1.14 : 1;
-      inner.style.transform = `scale(${(scale * hoverBoost).toFixed(3)})`;
-      inner.style.filter = `brightness(${0.78 + t * 0.3})`;
+      const hoverBoost = entry === hoveredEntry || entry.el === document.activeElement ? 1.14 : 1;
+      entry.inner.style.transform = `scale(${(scale * hoverBoost).toFixed(3)})`;
+      entry.inner.style.filter = `brightness(${(0.78 + t * 0.3).toFixed(2)})`;
+      entry.shadow.style.opacity = (0.3 + t * 0.5).toFixed(2);
 
-      const shadow = el.querySelector(".tt-item-shadow");
-      if (shadow) shadow.style.opacity = (0.3 + t * 0.5).toFixed(2);
-
-      el.classList.toggle("is-active", isNear);
+      entry.el.classList.toggle("is-active", isNear);
 
       if (t > frontT) {
         frontT = t;
-        frontEl = el;
+        frontEntry = entry;
       }
-    });
+    }
 
     // exactly one item is ever "dead center" — used to show just its
     // name on small screens instead of the whole near-front cluster
-    els.forEach((el) => el.classList.toggle("is-front", el === frontEl));
+    for (let i = 0; i < itemRefs.length; i++) {
+      itemRefs[i].el.classList.toggle("is-front", itemRefs[i] === frontEntry);
+    }
   }
 
   function normalizedActiveIndex() {
@@ -241,17 +284,43 @@
     });
   }
 
-  function goTo(index) {
+  // shared rotation math used by both a deliberate goTo() and the
+  // momentum system settling on the nearest item after it coasts to a stop
+  function rotateToIndex(index) {
     const n = items.length;
     if (n === 0) return;
     const angleStep = 360 / n;
-    // spin so item `index` ends up at the front
     const targetAngle = -angleStep * index;
     let delta = targetAngle - (rotation % 360);
     delta = ((delta + 180) % 360 + 360) % 360 - 180;
     rotation += delta;
-    layout();
+    layout(false);
     updateDetail();
+  }
+
+  function goTo(index) {
+    cancelMotion();
+    rotateToIndex(index);
+  }
+
+  // like goTo, but used when momentum finishes on its own — keeps a
+  // brief pause after settling before ambient drift picks back up
+  function settleTo(index) {
+    rotateToIndex(index);
+    if (settleTimer) clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => {
+      motionMode = "idle";
+      settleTimer = null;
+    }, 700);
+  }
+
+  function cancelMotion() {
+    velocity = 0;
+    motionMode = "idle";
+    if (settleTimer) {
+      clearTimeout(settleTimer);
+      settleTimer = null;
+    }
   }
 
   function step(dir) {
@@ -286,18 +355,35 @@
   });
 
   // drag / swipe to spin the table — mouse and touch both go through
-  // pointer events, so one handler covers both
+  // pointer events, so one handler covers both. velocity is sampled
+  // during the drag so a quick flick can carry momentum after release.
+  //
+  // Tapping (a press+release with no real movement) is detected here
+  // directly, rather than relying on the browser's "click" event: once
+  // stage.setPointerCapture() is active, the click event that follows
+  // gets retargeted to the stage itself instead of the plate under the
+  // finger/cursor, so a listener on the plate never sees it. Handling
+  // the tap in pointerup sidesteps that entirely.
   let dragging = false;
   let dragStartX = 0;
   let dragStartRotation = 0;
   let dragMoved = false;
+  let lastMoveTime = 0;
+  let lastMoveRotation = 0;
+  let pointerDownEntry = null;
 
   stage.addEventListener("pointerdown", (e) => {
     if (items.length === 0) return;
+    cancelMotion();
+    motionMode = "dragging";
     dragging = true;
     dragMoved = false;
     dragStartX = e.clientX;
     dragStartRotation = rotation;
+    lastMoveTime = performance.now();
+    lastMoveRotation = rotation;
+    const itemEl = e.target.closest && e.target.closest(".tt-item");
+    pointerDownEntry = itemEl ? itemRefs.find((r) => r.el === itemEl) : null;
     stage.setPointerCapture(e.pointerId);
   });
 
@@ -305,18 +391,40 @@
     if (!dragging) return;
     const dx = e.clientX - dragStartX;
     if (Math.abs(dx) > 4) dragMoved = true;
-    // full stage width drag ~= one full turn around the table
     rotation = dragStartRotation + (dx / xRadius) * 90;
-    layout();
+    layout(true);
+
+    const now = performance.now();
+    const dt = now - lastMoveTime;
+    if (dt > 0) {
+      const instant = ((rotation - lastMoveRotation) / dt) * 1000; // deg/sec
+      velocity = velocity * 0.4 + instant * 0.6;
+      lastMoveTime = now;
+      lastMoveRotation = rotation;
+    }
   });
 
   function endDrag(e) {
     if (!dragging) return;
     dragging = false;
-    if (dragMoved) {
-      // settle on whichever item ended up closest to the front
-      goTo(normalizedActiveIndex());
+
+    if (!dragMoved) {
+      // a genuine tap — open the plate it landed on, if any
+      motionMode = "idle";
+      if (pointerDownEntry) {
+        openPlateModal(pointerDownEntry.item, pointerDownEntry.plate);
+        goTo(pointerDownEntry.index);
+      }
+    } else {
+      velocity = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, velocity));
+      if (!prefersReducedMotion && Math.abs(velocity) > MIN_COAST_VELOCITY) {
+        motionMode = "coasting";
+      } else {
+        goTo(normalizedActiveIndex());
+      }
     }
+
+    pointerDownEntry = null;
     if (e && e.pointerId != null && stage.hasPointerCapture(e.pointerId)) {
       stage.releasePointerCapture(e.pointerId);
     }
@@ -325,28 +433,63 @@
   stage.addEventListener("pointerup", endDrag);
   stage.addEventListener("pointercancel", endDrag);
 
-  // dragging shouldn't also fire a click on the item underneath
-  stage.addEventListener(
-    "click",
-    (e) => {
-      if (dragMoved) {
-        e.preventDefault();
-        e.stopPropagation();
-        dragMoved = false;
-      }
-    },
-    true
-  );
+  // the tap is fully handled in pointerup above; swallow the click event
+  // that follows so nothing double-fires
+  stage.addEventListener("click", (e) => { e.preventDefault(); }, true);
 
+  // ambient drift pauses while the table is hovered/focused, or while
+  // the plate detail modal is open, so it doesn't fight with reading
+  stage.addEventListener("pointerenter", () => { isPaused = true; });
+  stage.addEventListener("pointerleave", () => { isPaused = false; });
+  stage.addEventListener("focusin", () => { isPaused = true; });
+  stage.addEventListener("focusout", (e) => {
+    if (!stage.contains(e.relatedTarget)) isPaused = false;
+  });
+  document.addEventListener("plate:opened", () => { isPaused = true; });
+  document.addEventListener("plate:closed", () => { isPaused = false; });
+
+  let resizeRaf = null;
   window.addEventListener("resize", () => {
-    computeGeometry();
-    layout();
+    if (resizeRaf) return;
+    resizeRaf = requestAnimationFrame(() => {
+      resizeRaf = null;
+      computeGeometry();
+      layout(true);
+    });
   });
 
   // stop the browser's own drag/select behavior on the stage
   stage.addEventListener("dragstart", (e) => e.preventDefault());
   stage.addEventListener("selectstart", (e) => e.preventDefault());
 
+  // single animation loop drives both flick-momentum coasting and the
+  // slow ambient rotation that runs whenever nothing else is happening
+  function tick(now) {
+    if (lastFrameTime == null) lastFrameTime = now;
+    const dt = Math.min(now - lastFrameTime, 50); // clamp spikes from tab-switches etc.
+    lastFrameTime = now;
+
+    if (items.length > 0) {
+      if (motionMode === "coasting") {
+        rotation += velocity * (dt / 1000);
+        velocity *= Math.pow(FRICTION_PER_SEC, dt / 1000);
+        layout(true);
+        if (Math.abs(velocity) < MIN_COAST_VELOCITY) {
+          velocity = 0;
+          motionMode = "settling";
+          settleTo(normalizedActiveIndex());
+        }
+      } else if (motionMode === "idle" && !isPaused && !prefersReducedMotion) {
+        rotation += IDLE_SPEED * (dt / 1000);
+        layout(true);
+        if (normalizedActiveIndex() !== activeIndex) updateDetail();
+      }
+    }
+
+    requestAnimationFrame(tick);
+  }
+
   buildFilters();
   build();
+  requestAnimationFrame(tick);
 })();
