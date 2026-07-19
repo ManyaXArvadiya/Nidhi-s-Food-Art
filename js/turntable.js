@@ -371,6 +371,16 @@
   let lastMoveTime = 0;
   let lastMoveRotation = 0;
   let pointerDownEntry = null;
+  let pointerDownTime = 0;
+  let maxAbsDx = 0;
+
+  // a real drag almost always travels further than a quick tap can
+  // accidentally wobble. TAP_MOVE_THRESHOLD alone would still misfire on
+  // fast, decisive taps (a firm quick tap often wobbles a few extra px),
+  // so a fast release also gets the more generous TAP_FAST_MOVE_THRESHOLD.
+  const TAP_MOVE_THRESHOLD = 10; // px
+  const TAP_FAST_MOVE_THRESHOLD = 24; // px, allowed if released quickly
+  const TAP_FAST_DURATION = 220; // ms
 
   stage.addEventListener("pointerdown", (e) => {
     if (items.length === 0) return;
@@ -382,6 +392,8 @@
     dragStartRotation = rotation;
     lastMoveTime = performance.now();
     lastMoveRotation = rotation;
+    pointerDownTime = lastMoveTime;
+    maxAbsDx = 0;
     const itemEl = e.target.closest && e.target.closest(".tt-item");
     pointerDownEntry = itemEl ? itemRefs.find((r) => r.el === itemEl) : null;
     stage.setPointerCapture(e.pointerId);
@@ -390,7 +402,8 @@
   stage.addEventListener("pointermove", (e) => {
     if (!dragging) return;
     const dx = e.clientX - dragStartX;
-    if (Math.abs(dx) > 4) dragMoved = true;
+    maxAbsDx = Math.max(maxAbsDx, Math.abs(dx));
+    if (Math.abs(dx) > TAP_MOVE_THRESHOLD) dragMoved = true;
     rotation = dragStartRotation + (dx / xRadius) * 90;
     layout(true);
 
@@ -408,7 +421,10 @@
     if (!dragging) return;
     dragging = false;
 
-    if (!dragMoved) {
+    const elapsed = performance.now() - pointerDownTime;
+    const wasTap = !dragMoved || (elapsed < TAP_FAST_DURATION && maxAbsDx < TAP_FAST_MOVE_THRESHOLD);
+
+    if (wasTap) {
       // a genuine tap — open the plate it landed on, if any
       motionMode = "idle";
       if (pointerDownEntry) {
