@@ -33,9 +33,12 @@
     centerX = w * 0.5;
     centerY = h * 0.56 - LIFT;
     xRadius = (w * 1.06) / 2 - 76;
-    yRadius = (h * 0.67) / 2 - 18;
+    // match the table disc's real on-screen height (--table-h: 67% of
+    // stage height), pulled in a bit further so plates sit on the
+    // surface rather than tracking its outer rim
+    yRadius = (h * 0.67) / 2 - 34;
     if (xRadius < 70) xRadius = 70;
-    if (yRadius < 30) yRadius = 30;
+    if (yRadius < 26) yRadius = 26;
   }
 
   function buildFilters() {
@@ -156,6 +159,9 @@
     const angleStep = 360 / n;
     const els = carousel.querySelectorAll(".tt-item");
 
+    let frontEl = null;
+    let frontT = -1;
+
     els.forEach((el, i) => {
       const angle = angleStep * i + rotation;
       const rad = (angle * Math.PI) / 180;
@@ -185,7 +191,16 @@
       if (shadow) shadow.style.opacity = (0.3 + t * 0.5).toFixed(2);
 
       el.classList.toggle("is-active", isNear);
+
+      if (t > frontT) {
+        frontT = t;
+        frontEl = el;
+      }
     });
+
+    // exactly one item is ever "dead center" — used to show just its
+    // name on small screens instead of the whole near-front cluster
+    els.forEach((el) => el.classList.toggle("is-front", el === frontEl));
   }
 
   function normalizedActiveIndex() {
@@ -269,6 +284,59 @@
     if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
     if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); }
   });
+
+  // drag / swipe to spin the table — mouse and touch both go through
+  // pointer events, so one handler covers both
+  let dragging = false;
+  let dragStartX = 0;
+  let dragStartRotation = 0;
+  let dragMoved = false;
+
+  stage.addEventListener("pointerdown", (e) => {
+    if (items.length === 0) return;
+    dragging = true;
+    dragMoved = false;
+    dragStartX = e.clientX;
+    dragStartRotation = rotation;
+    stage.setPointerCapture(e.pointerId);
+  });
+
+  stage.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - dragStartX;
+    if (Math.abs(dx) > 4) dragMoved = true;
+    // full stage width drag ~= one full turn around the table
+    rotation = dragStartRotation + (dx / xRadius) * 90;
+    layout();
+  });
+
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    if (dragMoved) {
+      // settle on whichever item ended up closest to the front
+      goTo(normalizedActiveIndex());
+    }
+    if (e && e.pointerId != null && stage.hasPointerCapture(e.pointerId)) {
+      stage.releasePointerCapture(e.pointerId);
+    }
+  }
+
+  stage.addEventListener("pointerup", endDrag);
+  stage.addEventListener("pointercancel", endDrag);
+
+  // dragging shouldn't also fire a click on the item underneath
+  stage.addEventListener(
+    "click",
+    (e) => {
+      if (dragMoved) {
+        e.preventDefault();
+        e.stopPropagation();
+        dragMoved = false;
+      }
+    },
+    true
+  );
 
   window.addEventListener("resize", () => {
     computeGeometry();

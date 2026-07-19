@@ -33,6 +33,8 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 body {
@@ -41,6 +43,7 @@ body {
   background: var(--cocoa-950);
   color: var(--parchment-100);
   overflow-x: hidden;
+  width: 100%;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -211,6 +214,13 @@ body::before {
   flex-shrink: 0;
 }
 
+.nav-order-icon-gift { display: block; }
+.nav-order-icon-contact {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .nav-order-btn:hover {
   transform: translateY(-2px);
   filter: brightness(1.05);
@@ -346,6 +356,7 @@ body::before {
 .turntable-section {
   position: relative;
   padding: 30px 0 50px;
+  overflow-x: hidden;
 }
 
 .turntable-hint {
@@ -365,12 +376,16 @@ body::before {
   margin: 0 auto;
   user-select: none;
   -webkit-user-select: none;
+  touch-action: pan-y;
+  cursor: grab;
   --table-cx: 50%;
   --table-cy: 56%;
   --table-w: 106%;
   --table-h: 67%;
   --table-edge: 26px;
 }
+
+.turntable-stage:active { cursor: grabbing; }
 
 /* wooden table top, made of three stacked ellipses so it has some
    real thickness to it - a dark under-rim, the wood edge above that,
@@ -1056,11 +1071,22 @@ body::before {
   .nav-order-btn { padding: 11px; border-radius: 50%; }
   .nav-order-btn span { display: none; }
   .nav-order-btn svg { width: 18px; height: 18px; }
+  .nav-order-icon-gift { display: none; width: 0; height: 0; }
+  .nav-order-icon-contact { display: block; width: 18px; height: 18px; }
   .hero { padding: 40px 20px 10px; }
   .category-section { padding: 64px 20px; }
   .tt-item { width: 104px; }
   .tt-item-plate { width: 104px; height: 104px; }
   .contact-card { padding: 36px 24px; }
+
+  /* keep it to just the centered item's name — a label on every
+     plate near the front gets cramped on a small screen */
+  .tt-item.is-active .tt-item-label { opacity: 0; transform: translateY(-4px); }
+  .tt-item.is-front .tt-item-label { opacity: 1; transform: translateY(0); }
+  .tt-item:hover .tt-item-label,
+  .tt-item:focus-visible .tt-item-label {
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 480px) {
