@@ -17,6 +17,10 @@
   let activeCategory = "all";
   let rotation = 0;
   let activeIndex = 0;
+  // per-item DOM refs, cached once at build() time so layout() never
+  // has to touch the DOM tree (querySelector/querySelectorAll) inside
+  // the animation loop — that was running on every single frame.
+  let itemRefs = [];
   let hoveredItem = null;
 
   // slow idle auto-rotation — cycles through every plate on its own,
@@ -51,6 +55,11 @@
       return;
     }
     const dt = (time - lastFrameTime) / 1000;
+    // this is a slow ambient rotation, not something that needs a
+    // full 120Hz refresh — capping it to ~30fps roughly halves the
+    // per-frame layout()/updateDetail() work on high-refresh phones
+    // with no visible loss of smoothness for motion this gentle.
+    if (dt < 1 / 30) return;
     lastFrameTime = time;
     rotation += AUTO_ROTATE_SPEED * dt;
     layout();
@@ -114,6 +123,8 @@
     carousel.innerHTML = "";
     dotsWrap.innerHTML = "";
     hoveredItem = null;
+    itemRefs = [];
+    activeIndex = -1;
 
     const n = items.length;
     if (n === 0) {
@@ -167,6 +178,8 @@
       el.appendChild(label);
       carousel.appendChild(el);
 
+      itemRefs.push({ el, inner, shadow });
+
       el.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -206,12 +219,12 @@
     const n = items.length;
     if (n === 0) return;
     const angleStep = 360 / n;
-    const els = carousel.querySelectorAll(".tt-item");
 
     let frontEl = null;
     let frontT = -1;
 
-    els.forEach((el, i) => {
+    for (let i = 0; i < itemRefs.length; i++) {
+      const { el, inner, shadow } = itemRefs[i];
       const angle = angleStep * i + rotation;
       const rad = (angle * Math.PI) / 180;
 
@@ -225,18 +238,29 @@
       const opacity = 0.55 + t * 0.45;
       const z = Math.round(t * 200);
 
-      el.style.left = `${x}px`;
-      el.style.top = `${y}px`;
+      // transform-only positioning: translate3d + the same -50%/-50%
+      // self-centering the old `left/top` + static transform combo
+      // produced, but composited on the GPU instead of triggering
+      // layout — that was the main source of jank while rotating.
+      el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -50%)`;
       el.style.zIndex = z;
       el.style.opacity = opacity.toFixed(2);
 
-      const inner = el.querySelector(".tt-item-inner");
       const isNear = t > 0.72;
       const hoverBoost = el === hoveredItem || el === document.activeElement ? 1.14 : 1;
       inner.style.transform = `scale(${(scale * hoverBoost).toFixed(3)})`;
-      inner.style.filter = `brightness(${0.78 + t * 0.3})`;
 
-      const shadow = el.querySelector(".tt-item-shadow");
+      // filter changes are far more expensive to repaint than
+      // transform/opacity, so round brightness to 2 steps and only
+      // touch the style when it actually changes — otherwise this
+      // was repainting every plate's filter on every single frame
+      // during rotation, whether or not it visibly changed.
+      const brightness = (Math.round((0.78 + t * 0.3) * 20) / 20).toFixed(2);
+      if (inner.dataset.brightness !== brightness) {
+        inner.dataset.brightness = brightness;
+        inner.style.filter = `brightness(${brightness})`;
+      }
+
       if (shadow) shadow.style.opacity = (0.3 + t * 0.5).toFixed(2);
 
       el.classList.toggle("is-active", isNear);
@@ -245,11 +269,11 @@
         frontT = t;
         frontEl = el;
       }
-    });
+    }
 
     // exactly one item is ever "dead center" — used to show just its
     // name on small screens instead of the whole near-front cluster
-    els.forEach((el) => el.classList.toggle("is-front", el === frontEl));
+    itemRefs.forEach(({ el }) => el.classList.toggle("is-front", el === frontEl));
   }
 
   function normalizedActiveIndex() {
@@ -286,7 +310,13 @@
   }
 
   function updateDetail() {
-    activeIndex = normalizedActiveIndex();
+    const newIndex = normalizedActiveIndex();
+    // during auto-rotate this runs every animation frame — only touch
+    // the DOM (text rewrites, rebuilding variant chips, querying dots)
+    // when the front-facing item has actually changed, otherwise this
+    // was forcing needless reflow/DOM churn 60 times a second.
+    if (newIndex === activeIndex) return;
+    activeIndex = newIndex;
     const item = items[activeIndex];
     if (!item) return;
 
@@ -306,6 +336,37 @@
     });
   }
 
+  // goTo() used to rely on the CSS transition on left/top to ease the
+  // plates into their new spot. Now that position is driven by JS
+  // every frame (for the GPU-friendly transform fix), that easing has
+  // to be reproduced here instead — a short rAF tween on `rotation`
+  // itself, so every plate still glides to its new spot together.
+  let spinTweenId = null;
+
+  function easeOutCubic(p) {
+    return 1 - Math.pow(1 - p, 3);
+  }
+
+  function animateRotationTo(targetRotation, duration = 450) {
+    if (spinTweenId != null) cancelAnimationFrame(spinTweenId);
+    const startRotation = rotation;
+    const delta = targetRotation - startRotation;
+    const startTime = performance.now();
+
+    function tick(now) {
+      const p = Math.min((now - startTime) / duration, 1);
+      rotation = startRotation + delta * easeOutCubic(p);
+      layout();
+      updateDetail();
+      if (p < 1) {
+        spinTweenId = requestAnimationFrame(tick);
+      } else {
+        spinTweenId = null;
+      }
+    }
+    spinTweenId = requestAnimationFrame(tick);
+  }
+
   function goTo(index) {
     const n = items.length;
     if (n === 0) return;
@@ -314,9 +375,7 @@
     const targetAngle = -angleStep * index;
     let delta = targetAngle - (rotation % 360);
     delta = ((delta + 180) % 360 + 360) % 360 - 180;
-    rotation += delta;
-    layout();
-    updateDetail();
+    animateRotationTo(rotation + delta);
   }
 
   function step(dir) {
@@ -357,6 +416,7 @@
   let dragStartX = 0;
   let dragStartRotation = 0;
   let dragMoved = false;
+  let dragLayoutQueued = false;
 
   stage.addEventListener("pointerdown", (e) => {
     if (items.length === 0) return;
@@ -374,7 +434,16 @@
     if (Math.abs(dx) > 4) dragMoved = true;
     // full stage width drag ~= one full turn around the table
     rotation = dragStartRotation + (dx / xRadius) * 90;
-    layout();
+    // pointermove/touchmove can fire far more often than the screen
+    // repaints, so the actual layout() pass is coalesced to once per
+    // animation frame rather than once per event — otherwise dragging
+    // was doing several full plate-position passes per frame.
+    if (dragLayoutQueued) return;
+    dragLayoutQueued = true;
+    requestAnimationFrame(() => {
+      dragLayoutQueued = false;
+      layout();
+    });
   });
 
   function endDrag(e) {
