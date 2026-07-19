@@ -19,6 +19,49 @@
   let activeIndex = 0;
   let hoveredItem = null;
 
+  // slow idle auto-rotation — cycles through every plate on its own,
+  // pauses the moment the user touches the table and eases back in
+  // a little while after they let go
+  const AUTO_ROTATE_SPEED = 6; // degrees per second
+  const AUTO_RESUME_DELAY = 2200; // ms after last interaction
+  let autoRotateEnabled = true;
+  let autoRotatePaused = false;
+  let resumeTimer = null;
+  let rafId = null;
+  let lastFrameTime = null;
+  const prefersReducedMotion =
+    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function pauseAutoRotate() {
+    autoRotatePaused = true;
+    if (resumeTimer) clearTimeout(resumeTimer);
+    resumeTimer = setTimeout(() => {
+      autoRotatePaused = false;
+    }, AUTO_RESUME_DELAY);
+  }
+
+  function autoRotateTick(time) {
+    rafId = requestAnimationFrame(autoRotateTick);
+    if (!autoRotateEnabled || autoRotatePaused || items.length <= 1) {
+      lastFrameTime = time;
+      return;
+    }
+    if (lastFrameTime == null) {
+      lastFrameTime = time;
+      return;
+    }
+    const dt = (time - lastFrameTime) / 1000;
+    lastFrameTime = time;
+    rotation += AUTO_ROTATE_SPEED * dt;
+    layout();
+    updateDetail();
+  }
+
+  function startAutoRotate() {
+    if (prefersReducedMotion || rafId != null) return;
+    rafId = requestAnimationFrame(autoRotateTick);
+  }
+
   // ellipse geometry for the plates, recalculated on build/resize.
   // needs to track the --table-cx/cy/w/h values set on .turntable-stage in the CSS
   let centerX = 0;
@@ -54,6 +97,7 @@
       btn.textContent = labels[cat] || cat;
       btn.addEventListener("click", () => {
         if (cat === activeCategory) return;
+        pauseAutoRotate();
         activeCategory = cat;
         items = cat === "all" ? ALL_ITEMS : ALL_ITEMS.filter((i) => i.category === cat);
         rotation = 0;
@@ -123,29 +167,34 @@
       el.appendChild(label);
       carousel.appendChild(el);
 
-      el.addEventListener("click", () => goTo(i));
       el.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
+          pauseAutoRotate();
           goTo(i);
+          openPlate(item, el);
         }
       });
       el.addEventListener("mouseenter", () => {
         hoveredItem = el;
+        pauseAutoRotate();
         layout();
       });
       el.addEventListener("mouseleave", () => {
         if (hoveredItem === el) hoveredItem = null;
         layout();
       });
-      el.addEventListener("focus", layout);
+      el.addEventListener("focus", () => {
+        pauseAutoRotate();
+        layout();
+      });
       el.addEventListener("blur", layout);
 
       const dot = document.createElement("button");
       dot.className = "tt-dot";
       dot.type = "button";
       dot.setAttribute("aria-label", `Show ${item.name}`);
-      dot.addEventListener("click", () => goTo(i));
+      dot.addEventListener("click", () => { pauseAutoRotate(); goTo(i); });
       dotsWrap.appendChild(dot);
     });
 
@@ -220,6 +269,22 @@
     return best;
   }
 
+  function openPlate(item, el) {
+    const plate = el.querySelector(".tt-item-plate");
+    const rect = (plate || el).getBoundingClientRect();
+    document.dispatchEvent(
+      new CustomEvent("plate:open", {
+        detail: {
+          item,
+          origin: {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2
+          }
+        }
+      })
+    );
+  }
+
   function updateDetail() {
     activeIndex = normalizedActiveIndex();
     const item = items[activeIndex];
@@ -260,8 +325,8 @@
     goTo((normalizedActiveIndex() + dir + n) % n);
   }
 
-  prevBtn && prevBtn.addEventListener("click", () => step(-1));
-  nextBtn && nextBtn.addEventListener("click", () => step(1));
+  prevBtn && prevBtn.addEventListener("click", () => { pauseAutoRotate(); step(-1); });
+  nextBtn && nextBtn.addEventListener("click", () => { pauseAutoRotate(); step(1); });
 
   // wheel over the stage steps to next/prev item
   let wheelLock = false;
@@ -271,6 +336,7 @@
       const n = items.length;
       if (n === 0) return;
       e.preventDefault();
+      pauseAutoRotate();
       if (wheelLock) return;
       wheelLock = true;
       step(e.deltaY > 0 ? 1 : -1);
@@ -281,8 +347,8 @@
 
   // arrow keys when the stage is focused
   stage.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
-    if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); }
+    if (e.key === "ArrowRight") { pauseAutoRotate(); e.preventDefault(); step(1); }
+    if (e.key === "ArrowLeft") { pauseAutoRotate(); e.preventDefault(); step(-1); }
   });
 
   // drag / swipe to spin the table — mouse and touch both go through
@@ -294,6 +360,7 @@
 
   stage.addEventListener("pointerdown", (e) => {
     if (items.length === 0) return;
+    pauseAutoRotate();
     dragging = true;
     dragMoved = false;
     dragStartX = e.clientX;
@@ -325,7 +392,10 @@
   stage.addEventListener("pointerup", endDrag);
   stage.addEventListener("pointercancel", endDrag);
 
-  // dragging shouldn't also fire a click on the item underneath
+  // dragging shouldn't also fire a click on the item underneath, and
+  // pointer capture during drag can redirect the click's target to
+  // `stage` itself rather than the plate under the cursor — so clicks
+  // are resolved and handled here instead of via per-item listeners
   stage.addEventListener(
     "click",
     (e) => {
@@ -333,7 +403,21 @@
         e.preventDefault();
         e.stopPropagation();
         dragMoved = false;
+        return;
       }
+
+      const target =
+        e.target.closest && e.target.closest(".tt-item")
+          ? e.target.closest(".tt-item")
+          : document.elementFromPoint(e.clientX, e.clientY)?.closest(".tt-item");
+
+      if (!target || !carousel.contains(target)) return;
+      const index = Number(target.dataset.index);
+      if (Number.isNaN(index) || !items[index]) return;
+
+      pauseAutoRotate();
+      goTo(index);
+      openPlate(items[index], target);
     },
     true
   );
@@ -349,4 +433,5 @@
 
   buildFilters();
   build();
+  startAutoRotate();
 })();
