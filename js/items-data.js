@@ -66,25 +66,14 @@ window.NIDHI_ITEMS = [
     image: "assets/items/oats-cookies.png"
   },
   {
-    slug: "jawar-cookies",
+    slug: "jawar-button-cookies",
     category: "cookies",
-    name: "Jawar Cookies",
-    tagline: "A grain worth rediscovering",
-    description: "Made with jawar flour for a nutty, wholesome bite.",
-    variants: ["Classic Jawar"],
+    name: "Jawar Button Cookies",
+    tagline: "Small, snackable, better for you",
+    description: "Bite-sized button cookies made with jawar flour for a nutty, wholesome bite. Hard to eat just one.",
+    variants: ["Classic"],
     color: "#C79A52",
     glow: "199, 154, 82",
-    image: "assets/items/jawar-cookies.png"
-  },
-  {
-    slug: "button-cookies",
-    category: "cookies",
-    name: "Healthy Button Cookies",
-    tagline: "Small, snackable, better for you",
-    description: "Bite-sized button cookies made with wholesome swaps. Hard to eat just one.",
-    variants: ["Classic"],
-    color: "#BF8E48",
-    glow: "191, 142, 72",
     image: "assets/items/button-cookies.png"
   },
   {
