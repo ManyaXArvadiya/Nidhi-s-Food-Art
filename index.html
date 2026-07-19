@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nidhi's Food Art — Designer Chocolates &amp; Healthy Bakes</title>
+  <meta name="description" content="Nidhi's Food Art: designer chocolates, healthy brownies, cookies, granola bars and festive hampers. FSSAI registered." />
+  <link rel="icon" type="image/png" href="assets/img/logo.png" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="brand">
+      <span class="brand-mark">
+        <img src="assets/img/logo.png" alt="" onerror="this.remove()" />
+      </span>
+      <span class="brand-name">Nidhi's Food Art<span>Chocolate &amp; Bake Studio</span></span>
+    </div>
+
+    <div class="site-header-right">
+      <nav class="site-nav">
+        <a href="#chocolate">Chocolate</a>
+        <a href="#cake">Cake</a>
+        <a href="#cookies">Cookies</a>
+        <a href="#nuts">Nuts</a>
+        <a href="#hampers">Hampers</a>
+      </nav>
+
+      <a href="#contact" class="nav-order-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v9H4v-9"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+        <span>Order Now</span>
+      </a>
+    </div>
+
+    <button class="nav-menu-toggle" id="navMenuToggle" aria-label="Open menu" aria-expanded="false" aria-controls="navMenuDropdown">
+      <span></span><span></span><span></span>
+    </button>
+  </header>
+
+  <div class="nav-menu-dropdown" id="navMenuDropdown">
+    <a href="#chocolate">Chocolate</a>
+    <a href="#cake">Cake</a>
+    <a href="#cookies">Cookies</a>
+    <a href="#nuts">Nuts</a>
+    <a href="#hampers">Hampers</a>
+    <a href="#contact" class="nav-menu-order">Order Now</a>
+  </div>
+
+  <main>
+
+    <section class="hero">
+      <p class="hero-eyebrow">Small-Batch &middot; Handmade &middot; FSSAI Registered</p>
+      <h1 class="hero-title">Chocolate, shaped<br /><em>like art.</em></h1>
+      <p class="hero-sub">Designer chocolates and healthy bakes, made by hand in small batches — spin the display to see what's on the counter today.</p>
+      <p class="hero-meta"><span>Milk &middot; Dark &middot; White</span><span class="dot"></span><span>Kunafa &middot; Biscoff</span><span class="dot"></span><span>Nuts</span></p>
+    </section>
+
+    <section class="turntable-section">
+      <div class="tt-filters" id="ttFilters"></div>
+
+      <div class="turntable-stage" id="turntableStage" tabindex="0" aria-label="Product display turntable, use arrow keys or the buttons below to browse">
+        <div class="turntable-floor-shadow" aria-hidden="true"></div>
+        <div class="turntable-disc-edge" aria-hidden="true"></div>
+        <div class="turntable-disc-rim" aria-hidden="true"></div>
+        <div class="turntable-disc" aria-hidden="true"></div>
+        <div class="turntable-carousel" id="turntableCarousel"></div>
+      </div>
+
+      <div class="turntable-controls">
+        <button class="tt-arrow" id="ttPrev" aria-label="Previous item" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="tt-dots" id="ttDots"></div>
+        <button class="tt-arrow" id="ttNext" aria-label="Next item" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+
+      <div class="tt-detail">
+        <h2 class="tt-detail-name" id="ttDetailName"></h2>
+        <p class="tt-detail-tagline" id="ttDetailTagline"></p>
+        <p class="tt-detail-desc" id="ttDetailDesc"></p>
+        <div class="tt-detail-variants" id="ttDetailVariants"></div>
+      </div>
+    </section>
+
+    <section class="category-section" id="chocolate">
+      <div class="category-head reveal">
+        <p class="category-eyebrow">On the counter</p>
+        <h2 class="category-title">Chocolate</h2>
+        <p class="category-desc">Designer bars, healthy brownies, and choco date balls — across milk, dark, white, nuts, kunafa, and biscoff.</p>
+      </div>
+      <div class="product-grid" data-category-grid="chocolate"></div>
+    </section>
+
+    <section class="category-section" id="cake">
+      <div class="category-head reveal">
+        <p class="category-eyebrow">Fresh from the oven</p>
+        <h2 class="category-title">Cake</h2>
+        <p class="category-desc">Custom cakes are baked to order — tell us the occasion and we'll design something to match.</p>
+      </div>
+      <div class="product-grid" data-category-grid="cake"></div>
+    </section>
+
+    <section class="category-section" id="cookies">
+      <div class="category-head reveal">
+        <p class="category-eyebrow">Everyday favourites</p>
+        <h2 class="category-title">Cookies &amp; Bars</h2>
+        <p class="category-desc">Oats, jawar, button cookies, and granola bars, and much more on the way.</p>
+      </div>
+      <div class="product-grid" data-category-grid="cookies"></div>
+    </section>
+
+    <section class="category-section" id="nuts">
+      <div class="category-head reveal">
+        <p class="category-eyebrow">Something to snack on</p>
+        <h2 class="category-title">Nuts</h2>
+        <p class="category-desc">Roasted, salted, ready to go.</p>
+      </div>
+      <div class="product-grid" data-category-grid="nuts"></div>
+    </section>
+
+    <section class="category-section" id="hampers">
+      <div class="category-head reveal">
+        <p class="category-eyebrow">For gifting</p>
+        <h2 class="category-title">Chocolate Hampers</h2>
+        <p class="category-desc">Curated boxes for Rakhi, Diwali, and birthdays — designer chocolate, packed to be given.</p>
+      </div>
+      <div class="product-grid" data-category-grid="hamper"></div>
+    </section>
+
+    <section class="trust-strip">
+      <div class="trust-bg" aria-hidden="true"></div>
+      <div class="trust-copy reveal">
+        <h2>Made by hand.</h2>
+        <p>Every piece is shaped, dipped, or piped by hand in small batches. FSSAI registered.</p>
+        <div class="trust-badges">
+          <div class="trust-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+            FSSAI Registered
+          </div>
+          <div class="trust-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+            Made Fresh to Order
+          </div>
+          <div class="trust-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c-4-2.5-8-5.5-8-10a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 4.5-4 7.5-8 10z"/></svg>
+            Small-Batch, Handmade
+          </div>
+        </div>
+      </div>
+      <div class="trust-visual reveal">
+        <div class="trust-visual-mark">
+          <img src="assets/img/logo.png" alt="Nidhi's Food Art logo" onerror="this.remove(); this.parentElement.innerHTML='<span class=&quot;brand-mark-fallback&quot;>NFA</span>'" />
+        </div>
+      </div>
+    </section>
+
+    <section class="contact-section" id="contact">
+      <div class="contact-card reveal">
+        <h2>Order a box today</h2>
+        <p>Reach out over call or email to place an order, ask about custom hampers, or check what's fresh this week.</p>
+        <div class="contact-links">
+          <a class="contact-link" href="tel:+919664711328">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.68 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.32 1.85.55 2.81.68A2 2 0 0 1 22 16.92z"/></svg>
+            +91 96647 11328
+          </a>
+          <a class="contact-link secondary" href="mailto:nidhi.metrog@gmail.com">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z" opacity="0"/><path d="M22 6l-10 7L2 6"/><rect x="2" y="4" width="20" height="16" rx="2"/></svg>
+            nidhi.metrog@gmail.com
+          </a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <p>Nidhi's Food Art &middot; FSSAI Registered</p>
+    <p>&copy; 2026 Nidhi's Food Art. All rights reserved.</p>
+  </footer>
+
+  <script src="js/items-data.js"></script>
+  <script src="js/turntable.js"></script>
+  <script src="js/product-grids.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
